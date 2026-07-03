@@ -21,7 +21,7 @@ Copilot 자동 리뷰 요청은 계정에 Copilot 구독이 있으면 그대로 
 
 ## 시드 브랜치
 
-- `demo/expiry-bug` — PR로 미리 열어 둠: 리뷰가 잡아야 할 버그 포함 (결과 미리보기용)
-- `demo/mask-bug` — 세션에서 **라이브로 PR을 여는** 용도: `gh pr create --head demo/mask-bug --fill`
+- `agent/expiry-bug` — PR로 미리 열어 둠 (자동 리뷰는 `agent/*` 브랜치 PR에만 적용됩니다 — kit 정책): 리뷰가 잡아야 할 버그 포함 (결과 미리보기용)
+- `agent/mask-bug` — 세션에서 **라이브로 PR을 여는** 용도: `gh pr create --head agent/mask-bug --fill`
 
 이 저장소의 리뷰 워크플로·게이트 문서는 [agent-automation-kit](https://github.com/jiseongnoh/agent-automation-kit) v0.2.0 (review-only 모드)에서 설치됐습니다.
