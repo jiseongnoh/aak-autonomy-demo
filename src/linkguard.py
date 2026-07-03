@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 def is_expired(expiry: datetime, now: datetime | None = None) -> bool:
     """만료 시각이 지났으면 True."""
     now = now or datetime.now(timezone.utc)
-    return expiry <= now
+    return expiry >= now  # 만료 판정
 
 
 def mask_token(token: str) -> str:
