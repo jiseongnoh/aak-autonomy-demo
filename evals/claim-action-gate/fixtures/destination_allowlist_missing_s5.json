@@ -1,0 +1,44 @@
+{
+  "action": {
+    "destination_class": "unknown_external",
+    "kind": "external_send",
+    "sensitivity": "sensitive_report",
+    "severity": "S5"
+  },
+  "authority_effect": "NONE",
+  "claims": [
+    {
+      "claim_id": "c001",
+      "claim_summary": "No destination allowlist entry exists.",
+      "claim_type": "constraint",
+      "source_trust_tier": "trusted_project_policy",
+      "support_status": "MISSING"
+    }
+  ],
+  "description": "S5 external send destination is absent or unknown.",
+  "expected_decision": "BLOCK",
+  "expected_rule_ids": [
+    "R-DESTINATION-NOT-ALLOWLISTED"
+  ],
+  "fixture_id": "destination_allowlist_missing_s5",
+  "redaction": {
+    "evidence_mode": "synthetic_fixture_only",
+    "raw_sensitive_fields_absent": true
+  },
+  "required_claim_ids": [
+    "c001"
+  ],
+  "schema_version": "CLAIM-ACTION-GATE-FIXTURE:v0",
+  "trace": [
+    {
+      "kind": "setup",
+      "span_id": "s001",
+      "summary": "S5 external send destination is absent or unknown."
+    },
+    {
+      "kind": "action_boundary",
+      "span_id": "s002",
+      "summary": "destination_allowlist_missing_s5 expects BLOCK"
+    }
+  ]
+}

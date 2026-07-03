@@ -1,0 +1,4 @@
+# Agent Automation Kit: local AI handoff/browser artifacts (never commit)
+.ai-bridge/
+.playwright-mcp/
+pro_*_extract.json

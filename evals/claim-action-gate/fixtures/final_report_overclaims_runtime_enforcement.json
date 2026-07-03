@@ -1,0 +1,44 @@
+{
+  "action": {
+    "destination_class": "user_visible_output",
+    "kind": "final_report",
+    "sensitivity": "roadmap_claim",
+    "severity": "S3"
+  },
+  "authority_effect": "NONE",
+  "claims": [
+    {
+      "claim_id": "c001",
+      "claim_summary": "Document claims runtime enforcement exists before integration design.",
+      "claim_type": "capability",
+      "source_trust_tier": "branch_local_roadmap",
+      "support_status": "OUT_OF_SCOPE"
+    }
+  ],
+  "description": "Fixture-only phase claims it provides runtime enforcement.",
+  "expected_decision": "REQUIRE_MORE_VERIFICATION",
+  "expected_rule_ids": [
+    "R-RUNTIME-ENFORCEMENT-OVERCLAIM"
+  ],
+  "fixture_id": "final_report_overclaims_runtime_enforcement",
+  "redaction": {
+    "evidence_mode": "synthetic_fixture_only",
+    "raw_sensitive_fields_absent": true
+  },
+  "required_claim_ids": [
+    "c001"
+  ],
+  "schema_version": "CLAIM-ACTION-GATE-FIXTURE:v0",
+  "trace": [
+    {
+      "kind": "setup",
+      "span_id": "s001",
+      "summary": "Fixture-only phase claims it provides runtime enforcement."
+    },
+    {
+      "kind": "action_boundary",
+      "span_id": "s002",
+      "summary": "final_report_overclaims_runtime_enforcement expects REQUIRE_MORE_VERIFICATION"
+    }
+  ]
+}

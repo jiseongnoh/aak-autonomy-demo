@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-automation-kit.local/schemas/claim-ledger.v0.schema.json",
+  "title": "Claim Ledger v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "trace_id",
+    "authority_effect",
+    "claims"
+  ],
+  "properties": {
+    "schema_version": {"const": "CLAIM-LEDGER:v0"},
+    "trace_id": {"type": "string", "minLength": 1},
+    "authority_effect": {"const": "NONE"},
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/claim"}
+    }
+  },
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id",
+        "claim_type",
+        "claim_summary",
+        "introduced_at",
+        "derived_from_refs",
+        "source_trust_tier",
+        "support_status",
+        "used_by_actions",
+        "policy_relevance",
+        "redaction"
+      ],
+      "properties": {
+        "claim_id": {"type": "string", "pattern": "^c[0-9A-Za-z_-]+$"},
+        "claim_type": {
+          "enum": [
+            "factual",
+            "constraint",
+            "evidence_summary",
+            "authorization",
+            "instruction",
+            "policy_exception",
+            "tool_result",
+            "source_trust",
+            "secret_need",
+            "capability",
+            "final_claim"
+          ]
+        },
+        "claim_summary": {"type": "string", "minLength": 1},
+        "introduced_at": {"type": "string", "minLength": 1},
+        "derived_from_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "source_trust_tier": {"type": "string", "minLength": 1},
+        "support_status": {
+          "enum": [
+            "DIRECT",
+            "WEAK",
+            "MISSING",
+            "CONFLICTING",
+            "TAINTED",
+            "OUT_OF_SCOPE",
+            "POLICY_FORBIDDEN",
+            "STALE"
+          ]
+        },
+        "used_by_actions": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "policy_relevance": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "redaction": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["raw_sensitive_fields_absent", "evidence_mode"],
+          "properties": {
+            "raw_sensitive_fields_absent": {"const": true},
+            "evidence_mode": {"enum": ["synthetic_fixture_only", "redacted_reference_only"]}
+          }
+        }
+      }
+    }
+  }
+}

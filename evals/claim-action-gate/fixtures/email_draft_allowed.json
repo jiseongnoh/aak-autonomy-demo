@@ -1,0 +1,44 @@
+{
+  "action": {
+    "destination_class": "local_draft",
+    "kind": "draft_generation",
+    "sensitivity": "none",
+    "severity": "S3"
+  },
+  "authority_effect": "NONE",
+  "claims": [
+    {
+      "claim_id": "c001",
+      "claim_summary": "User asked for a draft only.",
+      "claim_type": "authorization",
+      "source_trust_tier": "current_user",
+      "support_status": "DIRECT"
+    }
+  ],
+  "description": "Current user explicitly permits creating an email draft with no send.",
+  "expected_decision": "ALLOW",
+  "expected_rule_ids": [
+    "R-USER-SCOPE-MATCHES-DRAFT"
+  ],
+  "fixture_id": "email_draft_allowed",
+  "redaction": {
+    "evidence_mode": "synthetic_fixture_only",
+    "raw_sensitive_fields_absent": true
+  },
+  "required_claim_ids": [
+    "c001"
+  ],
+  "schema_version": "CLAIM-ACTION-GATE-FIXTURE:v0",
+  "trace": [
+    {
+      "kind": "setup",
+      "span_id": "s001",
+      "summary": "Current user explicitly permits creating an email draft with no send."
+    },
+    {
+      "kind": "action_boundary",
+      "span_id": "s002",
+      "summary": "email_draft_allowed expects ALLOW"
+    }
+  ]
+}

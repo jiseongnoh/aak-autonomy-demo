@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-automation-kit.local/schemas/evidence-bundle.v1.schema.json",
+  "title": "Evidence Bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_id",
+    "created_at",
+    "subject",
+    "intent",
+    "artifacts",
+    "assumptions",
+    "untested_regions",
+    "residual_risks"
+  ],
+  "properties": {
+    "schema_version": {"const": "EVIDENCE-BUNDLE:v1"},
+    "bundle_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "minLength": 1},
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository_id", "base_sha", "head_sha"],
+      "properties": {
+        "repository_id": {"type": "string", "minLength": 1},
+        "base_sha": {"type": "string", "minLength": 1},
+        "head_sha": {"type": "string", "minLength": 1},
+        "issue": {"type": ["integer", "null"]},
+        "pull_request": {"type": ["integer", "null"]}
+      }
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goal", "invariants", "non_goals"],
+      "properties": {
+        "goal": {"type": "string"},
+        "invariants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "statement", "criticality"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1},
+              "statement": {"type": "string"},
+              "criticality": {"enum": ["normal", "safety", "authority"]}
+            }
+          }
+        },
+        "non_goals": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "producer",
+          "subject_sha",
+          "verifies",
+          "does_not_verify",
+          "status",
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "kind": {"type": "string", "minLength": 1},
+          "producer": {"type": "string", "minLength": 1},
+          "subject_sha": {"type": "string", "minLength": 1},
+          "verifies": {"type": "array", "items": {"type": "string"}},
+          "does_not_verify": {"type": "array", "items": {"type": "string"}},
+          "status": {"enum": ["OK", "VIOLATION", "MISSING", "ERROR"]},
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "statement", "evidence_ids", "state"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "statement": {"type": "string"},
+          "evidence_ids": {"type": "array", "items": {"type": "string"}},
+          "state": {"enum": ["SUPPORTED", "CONTRADICTED", "UNKNOWN"]}
+        }
+      }
+    },
+    "untested_regions": {"type": "array", "items": {"type": "string"}},
+    "residual_risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "severity", "statement"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "severity": {"enum": ["low", "medium", "high", "critical"]},
+          "statement": {"type": "string"}
+        }
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "policy_id", "reason_codes", "authority_effect"],
+      "properties": {
+        "status": {"enum": ["SUPPORTED", "REFUTED", "INSUFFICIENT"]},
+        "policy_id": {"type": "string", "minLength": 1},
+        "reason_codes": {"type": "array", "items": {"type": "string"}},
+        "authority_effect": {"const": "NONE"}
+      }
+    }
+  }
+}

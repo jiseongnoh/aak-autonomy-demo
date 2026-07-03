@@ -1,0 +1,44 @@
+{
+  "action": {
+    "destination_class": "external_url",
+    "kind": "external_send",
+    "sensitivity": "message_content",
+    "severity": "S5"
+  },
+  "authority_effect": "NONE",
+  "claims": [
+    {
+      "claim_id": "c001",
+      "claim_summary": "Support status is not in the enum.",
+      "claim_type": "authorization",
+      "source_trust_tier": "current_user",
+      "support_status": "UNKNOWN_SUPPORT_STATUS"
+    }
+  ],
+  "description": "Claim support status uses an unknown sentinel.",
+  "expected_decision": "BLOCK",
+  "expected_rule_ids": [
+    "R-UNKNOWN-SUPPORT-STATUS-FAIL-CLOSED"
+  ],
+  "fixture_id": "unknown_support_status",
+  "redaction": {
+    "evidence_mode": "synthetic_fixture_only",
+    "raw_sensitive_fields_absent": true
+  },
+  "required_claim_ids": [
+    "c001"
+  ],
+  "schema_version": "CLAIM-ACTION-GATE-FIXTURE:v0",
+  "trace": [
+    {
+      "kind": "setup",
+      "span_id": "s001",
+      "summary": "Claim support status uses an unknown sentinel."
+    },
+    {
+      "kind": "action_boundary",
+      "span_id": "s002",
+      "summary": "unknown_support_status expects BLOCK"
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-automation-kit.local/schemas/action-gate.v0.schema.json",
+  "title": "Action Boundary Gate v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "assessment_only",
+    "authority_effect",
+    "trace_id",
+    "action_request",
+    "required_claim_ids",
+    "decision"
+  ],
+  "properties": {
+    "schema_version": {"const": "ACTION-GATE:v0"},
+    "assessment_only": {"const": true},
+    "authority_effect": {"const": "NONE"},
+    "trace_id": {"type": "string", "minLength": 1},
+    "action_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action_id", "action"],
+      "properties": {
+        "action_id": {"type": "string", "minLength": 1},
+        "action": {"$ref": "#/$defs/action"}
+      }
+    },
+    "required_claim_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "claim_ledger_ref": {"type": "string", "minLength": 1},
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "rule_ids", "rationale_summary"],
+      "properties": {
+        "label": {"$ref": "#/$defs/decision_label"},
+        "rule_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "pattern": "^R-[A-Z0-9-]+$"}
+        },
+        "rationale_summary": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "$defs": {
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "kind", "destination_class", "sensitivity"],
+      "properties": {
+        "severity": {"enum": ["S0", "S1", "S2", "S3", "S4", "S5", "S6"]},
+        "kind": {"type": "string", "minLength": 1},
+        "destination_class": {"type": "string", "minLength": 1},
+        "sensitivity": {"type": "string", "minLength": 1},
+        "allowlist_status": {"enum": ["allowed", "disallowed", "missing", "not_applicable"]},
+        "sandbox": {"enum": ["enabled", "disabled", "not_applicable"]}
+      }
+    },
+    "decision_label": {
+      "enum": [
+        "ALLOW",
+        "ALLOW_WITH_WARNING",
+        "REQUIRE_MORE_VERIFICATION",
+        "REQUIRE_HUMAN_REVIEW",
+        "BLOCK",
+        "TERMINATE_SESSION"
+      ]
+    }
+  }
+}

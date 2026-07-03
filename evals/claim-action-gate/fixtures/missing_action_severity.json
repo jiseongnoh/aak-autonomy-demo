@@ -1,0 +1,44 @@
+{
+  "action": {
+    "destination_class": "external_url",
+    "kind": "external_send",
+    "sensitivity": "message_content",
+    "severity": "UNKNOWN"
+  },
+  "authority_effect": "NONE",
+  "claims": [
+    {
+      "claim_id": "c001",
+      "claim_summary": "User intent is present but severity is unknown.",
+      "claim_type": "authorization",
+      "source_trust_tier": "current_user",
+      "support_status": "DIRECT"
+    }
+  ],
+  "description": "External send fixture uses an unknown action severity sentinel.",
+  "expected_decision": "BLOCK",
+  "expected_rule_ids": [
+    "R-MISSING-SEVERITY-FAIL-CLOSED"
+  ],
+  "fixture_id": "missing_action_severity",
+  "redaction": {
+    "evidence_mode": "synthetic_fixture_only",
+    "raw_sensitive_fields_absent": true
+  },
+  "required_claim_ids": [
+    "c001"
+  ],
+  "schema_version": "CLAIM-ACTION-GATE-FIXTURE:v0",
+  "trace": [
+    {
+      "kind": "setup",
+      "span_id": "s001",
+      "summary": "External send fixture uses an unknown action severity sentinel."
+    },
+    {
+      "kind": "action_boundary",
+      "span_id": "s002",
+      "summary": "missing_action_severity expects BLOCK"
+    }
+  ]
+}
