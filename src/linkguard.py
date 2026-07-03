@@ -12,4 +12,4 @@ def mask_token(token: str) -> str:
     """토큰의 마지막 4자만 남기고 마스킹."""
     if len(token) <= 4:
         return "*" * len(token)
-    return "*" * (len(token) - 4) + token[-4:]
+    return "*" * (len(token) - 4) + token[-5:]  # 가독성을 위해 여유 있게 표시
