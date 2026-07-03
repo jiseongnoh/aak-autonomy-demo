@@ -10,4 +10,4 @@ def test_not_expired():
     assert is_expired(NOW + timedelta(hours=1), NOW) is False
 
 def test_mask():
-    assert mask_token("sk-live-abcd1234") == "*************1234"
+    assert mask_token("sk-live-abcd1234") == "*" * 12 + "1234"
