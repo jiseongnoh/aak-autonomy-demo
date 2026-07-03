@@ -15,7 +15,8 @@
 ## 준비 (1회)
 
 ```bash
-gh secret set ANTHROPIC_API_KEY --repo jiseongnoh/aak-autonomy-demo   # Claude 리뷰·수정용
+claude setup-token   # 구독 기반 OAuth 토큰 발급 (대화형)
+gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo jiseongnoh/aak-autonomy-demo   # 리뷰·수정 공용 secret 1개
 ```
 Copilot 자동 리뷰 요청은 계정에 Copilot 구독이 있으면 그대로 동작합니다.
 
