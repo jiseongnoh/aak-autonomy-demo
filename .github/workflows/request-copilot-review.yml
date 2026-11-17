@@ -237,6 +237,10 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
+    outputs:
+      review_validated: ${{ steps.post_comment.outputs.review_validated }}
+      review_verdict: ${{ steps.post_comment.outputs.review_verdict }}
+      reviewed_head_sha: ${{ steps.post_comment.outputs.reviewed_head_sha }}
     steps:
       - name: Verify Claude subscription OAuth token is configured
         env:
@@ -269,7 +273,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import json
           import os
+          import re
           import subprocess
           import uuid
           from pathlib import Path
@@ -281,13 +287,22 @@ jobs:
 
           meta = subprocess.check_output([
               "gh", "pr", "view", pr, "--repo", repo,
-              "--json", "number,title,headRefName,headRefOid,baseRefName,changedFiles,additions,deletions,url"
+              "--json", "number,title,headRefName,headRefOid,baseRefName,baseRefOid,changedFiles,additions,deletions,url"
           ], text=True)
-          diff = subprocess.check_output(["gh", "pr", "diff", pr, "--repo", repo], text=True, errors="replace")
+          metadata = json.loads(meta)
+          target_head_sha = metadata.get("headRefOid", "")
+          base_ref_sha = metadata.get("baseRefOid", "")
+          if not re.fullmatch(r"[0-9a-fA-F]{40}", target_head_sha) or not re.fullmatch(r"[0-9a-fA-F]{40}", base_ref_sha):
+              raise SystemExit("PR metadata did not provide immutable base/head commit SHAs.")
+          changed_files = int(metadata["changedFiles"])
+          compare_route = f"repos/{repo}/compare/{base_ref_sha}...{target_head_sha}"
+          diff = subprocess.check_output([
+              "gh", "api", "-H", "Accept: application/vnd.github.diff", compare_route
+          ], text=True, errors="replace")
           max_chars = 60000
-          truncated = len(diff) > max_chars
+          truncated = len(diff) > max_chars or changed_files >= 300
           if truncated:
-              diff = diff[:max_chars] + "\n...[diff truncated at 60000 chars]\n"
+              diff = diff[:max_chars] + "\n...[diff incomplete: local size cap or GitHub comparison file cap]\n"
 
           prompt = "\n".join([
               f"Review PR #{pr} as a Claude advisory fallback because Copilot review was unavailable or errored.",
@@ -295,6 +310,8 @@ jobs:
               "Copilot fallback context:",
               f"- Copilot request job result: {copilot_result}",
               f"- Copilot request status: {copilot_status}",
+              f"- Required target_head_sha (exact): {target_head_sha}",
+              f"- Diff is fetched from immutable base/head pair: {base_ref_sha}...{target_head_sha}",
               "",
               "Review profile: general.",
               "Review current PR diff correctness, UX regressions, privacy/security scope, and GitHub-first protocol compliance.",
@@ -322,18 +339,19 @@ jobs:
               "- Short summary for humans.",
               "- Findings grouped by severity.",
               "- A line containing exactly: CLAUDE-FALLBACK-REVIEW:v1",
-              f"- Then a fenced json block with schema, repo, pr, target_head_sha, fallback_for=\"copilot-review-unavailable-or-error\", advisory_only=true, findings, verdict, reviewed_by=\"claude-code-action\", diff_truncated={str(truncated).lower()}.",
+              "- Then exactly one fenced json block with: schema=CLAUDE-FALLBACK-REVIEW:v1, result=success only when review completed, repo, integer pr, target_head_sha (exact required value above), fallback_for=copilot-review-unavailable-or-error, advisory_only=true, findings array of {severity,title,description}, verdict in [pass, findings, request_changes, block], reviewed_by=claude-code-action, diff_truncated=false.",
+              "- verdict pass requires an empty findings array; findings/request_changes/block require at least one finding. request_changes and block are gate-blocking recommendations; pass/findings only mean review completed and never grant approval.",
+              f"- This input diff_truncated={str(truncated).lower()}. A truncated diff is incomplete: return result=incomplete and verdict=block; do not claim a completed review.",
           ])
           delimiter = f"CLAUDE_FALLBACK_PROMPT_EOF_{uuid.uuid4().hex}"
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as f:
               f.write(f"prompt<<{delimiter}\n")
               f.write(prompt)
               f.write(f"\n{delimiter}\n")
-              import json
-              head_sha = json.loads(meta)["headRefOid"]
               url = json.loads(meta)["url"]
-              f.write(f"head_sha={head_sha}\n")
+              f.write(f"head_sha={target_head_sha}\n")
               f.write(f"pr_url={url}\n")
+              f.write(f"diff_truncated={str(truncated).lower()}\n")
           PY
 
       # SECURITY: Fallback review is advisory only. This job must not checkout or
@@ -358,6 +376,7 @@ jobs:
             --disallowedTools Edit,Write,MultiEdit,NotebookEdit,Bash
 
       - name: Post Claude fallback review comment
+        id: post_comment
         if: ${{ success() }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -366,11 +385,13 @@ jobs:
           EXECUTION_FILE: ${{ steps.claude-fallback-review.outputs.execution_file }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TARGET_HEAD_SHA: ${{ steps.fallback_context.outputs.head_sha }}
+          DIFF_TRUNCATED: ${{ steps.fallback_context.outputs.diff_truncated }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json
           import os
+          import re
           import subprocess
           from pathlib import Path
 
@@ -379,6 +400,11 @@ jobs:
           execution_file = os.environ.get("EXECUTION_FILE", "")
           run_url = os.environ["RUN_URL"]
           target_head_sha = os.environ.get("TARGET_HEAD_SHA", "")
+          diff_truncated = os.environ.get("DIFF_TRUNCATED", "")
+
+          def require(condition, message):
+              if not condition:
+                  raise SystemExit(message)
 
           def text_from_content(content):
               parts = []
@@ -396,32 +422,33 @@ jobs:
               return "\n".join(parts).strip()
 
           def parse_records(path):
-              text = path.read_text(encoding="utf-8", errors="replace")
+              require(path.is_file(), "Claude fallback execution output is missing or not a regular file.")
+              text = path.read_text(encoding="utf-8")
               stripped = text.strip()
-              if not stripped:
-                  return []
-              if stripped[0] in "[{":
-                  try:
-                      parsed = json.loads(stripped)
-                      return parsed if isinstance(parsed, list) else [parsed]
-                  except json.JSONDecodeError:
-                      pass
+              require(bool(stripped), "Claude fallback execution output is empty.")
+              try:
+                  parsed = json.loads(stripped)
+                  return parsed if isinstance(parsed, list) else [parsed]
+              except json.JSONDecodeError:
+                  pass
               records = []
               for line in text.splitlines():
-                  line = line.strip()
-                  if not line:
+                  if not line.strip():
                       continue
                   try:
                       records.append(json.loads(line))
-                  except json.JSONDecodeError:
-                      continue
+                  except json.JSONDecodeError as exc:
+                      raise SystemExit(f"Malformed Claude fallback execution record: {exc}") from exc
+              require(bool(records), "Claude fallback execution output contains no records.")
               return records
 
           assistant_texts = []
           result_texts = []
+          records = []
           path = Path(execution_file) if execution_file else None
           if path and path.exists():
-              for obj in parse_records(path):
+              records = parse_records(path)
+              for obj in records:
                   if not isinstance(obj, dict):
                       continue
                   if obj.get("type") == "assistant":
@@ -434,18 +461,65 @@ jobs:
                           value = obj.get(key)
                           if isinstance(value, str) and value.strip():
                               result_texts.append(value.strip())
-          review = assistant_texts[-1] if assistant_texts else (result_texts[-1] if result_texts else "")
-          if not review:
-              review = "Claude fallback review completed, but the workflow could not parse textual review output. Inspect the linked run logs before treating this as review evidence."
+          review_candidates = assistant_texts or result_texts
+          require(bool(review_candidates), "Claude fallback produced no textual review result.")
+          terminal = records[-1] if records and isinstance(records[-1], dict) else {}
+          require(terminal.get("type") == "result", "Claude fallback execution has no terminal result record.")
+          require(terminal.get("is_error") is False and terminal.get("subtype") == "success",
+                  "Claude fallback execution ended with an error or incomplete result.")
+          review = review_candidates[-1]
+          require(len(review) <= 60000, "Claude fallback review output exceeds the visible-comment limit.")
+          marker = "CLAUDE-FALLBACK-REVIEW:v1"
+          lines = review.splitlines()
+          require(lines.count(marker) == 1, "Claude fallback marker is missing or duplicated.")
+          marker_index = lines.index(marker)
+          after_marker = "\n".join(lines[marker_index + 1:])
+          blocks = re.findall(r"```json\s*([\s\S]*?)```", after_marker)
+          require(len(blocks) == 1, "Claude fallback JSON block is missing or duplicated.")
+          try:
+              report = json.loads(blocks[0])
+          except json.JSONDecodeError as exc:
+              raise SystemExit(f"Claude fallback JSON is malformed: {exc}") from exc
+          require(isinstance(report, dict), "Claude fallback JSON must be an object.")
+          pr_number = int(pr)
+          require(bool(re.fullmatch(r"[0-9a-fA-F]{40}", target_head_sha)), "Expected target head SHA is missing or invalid.")
+          require(report.get("schema") == marker, "Claude fallback schema marker is invalid.")
+          require(report.get("result") == "success", "Claude fallback review did not report a completed success.")
+          require(report.get("repo") == repo, "Claude fallback repository does not match the target.")
+          require(type(report.get("pr")) is int and report["pr"] == pr_number, "Claude fallback PR number does not match the target.")
+          require(report.get("target_head_sha") == target_head_sha, "Claude fallback reviewed head does not match the requested head.")
+          require(report.get("fallback_for") == "copilot-review-unavailable-or-error", "Claude fallback reason is invalid.")
+          require(report.get("advisory_only") is True, "Claude fallback must be advisory only.")
+          require(report.get("reviewed_by") == "claude-code-action", "Claude fallback reviewer label is invalid.")
+          require(diff_truncated == "false", "Trusted prompt context says the reviewed diff was truncated or unknown.")
+          require(report.get("diff_truncated") is False, "A truncated diff is incomplete and cannot pass review evidence.")
+          findings = report.get("findings")
+          require(isinstance(findings, list), "Claude fallback findings must be an array.")
+          valid_severities = {"critical", "high", "medium", "low"}
+          require(all(isinstance(f, dict) and f.get("severity") in valid_severities
+                      and isinstance(f.get("title"), str) and isinstance(f.get("description"), str)
+                      for f in findings), "Claude fallback finding schema is invalid.")
+          verdict = report.get("verdict")
+          require(verdict in {"pass", "findings", "request_changes", "block"}, "Claude fallback verdict is invalid.")
+          require((verdict == "pass") == (len(findings) == 0), "Claude fallback verdict and findings disagree.")
 
-          max_chars = 60000
-          if len(review) > max_chars:
-              review = review[:max_chars] + "\n\n...[Claude fallback review truncated by workflow at 60000 chars]"
+          def current_head_sha():
+              current = subprocess.check_output(
+                  ["gh", "pr", "view", pr, "--repo", repo, "--json", "headRefOid"], text=True
+              )
+              return json.loads(current).get("headRefOid")
+
+          require(current_head_sha() == target_head_sha, "PR head changed after the review target was prepared.")
 
           body = f"""## Claude fallback review\n\nAdvisory fallback review for PR #{pr}. This is **not** approval, merge authority, final acceptance, or a gate waiver. Human Release Manager remains final authority.\n\nTarget head SHA: `{target_head_sha}`\nRun: {run_url}\n\n---\n\n{review}\n"""
           body_path = Path("claude-fallback-review-comment.md")
           body_path.write_text(body, encoding="utf-8")
           subprocess.run(["gh", "pr", "comment", pr, "--repo", repo, "--body-file", str(body_path)], check=True)
+          require(current_head_sha() == target_head_sha, "PR head changed while posting the fallback review comment.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              print("review_validated=true", file=out)
+              print(f"review_verdict={verdict}", file=out)
+              print(f"reviewed_head_sha={target_head_sha}", file=out)
           PY
 
   copilot-review-requested:
@@ -468,6 +542,9 @@ jobs:
           FALLBACK_ALLOWED: ${{ needs.request.outputs.fallback_allowed }}
           POLICY_BLOCKED: ${{ needs.request.outputs.policy_blocked }}
           CLAUDE_FALLBACK_RESULT: ${{ needs['claude-review-fallback'].result }}
+          CLAUDE_FALLBACK_VALIDATED: ${{ needs['claude-review-fallback'].outputs.review_validated }}
+          CLAUDE_FALLBACK_VERDICT: ${{ needs['claude-review-fallback'].outputs.review_verdict }}
+          CLAUDE_FALLBACK_HEAD_SHA: ${{ needs['claude-review-fallback'].outputs.reviewed_head_sha }}
         run: |
           set -euo pipefail
           echo "classify_result: $CLASSIFY_RESULT"
@@ -479,6 +556,9 @@ jobs:
           echo "fallback_allowed: ${FALLBACK_ALLOWED:-}"
           echo "policy_blocked: ${POLICY_BLOCKED:-}"
           echo "claude_fallback_result: $CLAUDE_FALLBACK_RESULT"
+          echo "claude_fallback_validated: ${CLAUDE_FALLBACK_VALIDATED:-}"
+          echo "claude_fallback_verdict: ${CLAUDE_FALLBACK_VERDICT:-}"
+          echo "claude_fallback_head_sha: ${CLAUDE_FALLBACK_HEAD_SHA:-}"
           if [ "$CLASSIFY_RESULT" != "success" ]; then
             echo "Copilot review classification failed."
             exit 1
@@ -495,9 +575,17 @@ jobs:
             echo "Copilot review request evidence passed."
             exit 0
           fi
-          if [ "${FALLBACK_ALLOWED:-}" = "true" ] && [ "$CLAUDE_FALLBACK_RESULT" = "success" ]; then
-            echo "Copilot review was unavailable or errored; Claude fallback review evidence passed."
-            exit 0
+          if [ "${FALLBACK_ALLOWED:-}" = "true" ] && [ "$CLAUDE_FALLBACK_RESULT" = "success" ] && [ "${CLAUDE_FALLBACK_VALIDATED:-}" = "true" ]; then
+            case "${CLAUDE_FALLBACK_VERDICT:-}" in
+              pass|findings)
+                echo "Claude fallback review completed and was posted for head ${CLAUDE_FALLBACK_HEAD_SHA:-unknown}; this is advisory evidence, not approval."
+                exit 0
+                ;;
+              request_changes|block)
+                echo "Claude fallback review completed and was posted, but verdict=${CLAUDE_FALLBACK_VERDICT} blocks this required check."
+                exit 1
+                ;;
+            esac
           fi
           if [ "${FALLBACK_ALLOWED:-}" = "true" ]; then
             echo "Copilot review request did not produce acceptable evidence, and Claude fallback did not pass."
